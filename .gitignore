@@ -9,6 +9,11 @@ __pycache__/
 # vscode
 .vscode/
 
+# data
+data/
+dataset/
+*.h5
+
 # Distribution / packaging
 .Python
 build/
