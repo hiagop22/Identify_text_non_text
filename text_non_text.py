@@ -1,11 +1,17 @@
 # %%
 import os
+import logging
+# logging.getLogger("tensorflow").setLevel(logging.WARNING)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+# os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 import glob
+import sys
 import random
 import shutil
 import numpy as np
 import gdown
 import tensorflow as tf
+
 from keras import Model
 from matplotlib.image import imread
 import matplotlib.pyplot as plt
@@ -18,20 +24,23 @@ from keras.applications.mobilenet import preprocess_input
 # from tensorflow.keras.utils import plot_model -> Necessary only if you desire to see the structure of NN
 from tensorflow.keras.callbacks import ModelCheckpoint
 from keras.preprocessing import image
-from shutil import copyfile
+
+
 # %%
 class PrepareEnvironment(object):
     def __init__(self):
         self.population_dataset = 'data/'
         self.sampled_dataset = 'dataset/'
         self.subdirs = ['training_set/', 'validation_set/', 'testing_set/']
-        self.amount_of_sample = {self.subdirs[0]: 1000, 
-                               self.subdirs[1]: 500,
-                               self.subdirs[2]: 10}
+        self.amount_of_sample = {self.subdirs[0]: 500, 
+                               self.subdirs[1]: 50,
+                               self.subdirs[2]: 500}
         self.batch_size = 64
-        self.labeldirs = ['nontext', 'text']
+        # self.labeldirs = ['nontext', 'text']
+        self.labeldirs = ['SEM_TEXTO', 'COM_TEXTO']
+        self.data_diretory = 'DATASET_PROCESSADO/'
 
-    def create_diretories(self):
+    def create_training_validation_testing_diretories(self):
         shutil.rmtree(self.sampled_dataset)
 
         for subdir in self.subdirs:
@@ -42,6 +51,16 @@ class PrepareEnvironment(object):
             else:
                 newdir = self.sampled_dataset + subdir + 'test'
                 os.makedirs(newdir, exist_ok=True)
+
+    def create_specifics_nontext_text_diretory(self):
+        if os.path.exists(self.data_diretory):
+            print(f'The diretory \'{diretory}\' already exist, delete it brefore run this script.')
+            return False
+        for labeldir in self.labeldirs:
+            new_dir = self.data_diretory + labeldir
+            os.makedirs(new_dir, exist_ok=True)
+
+        return True
 
     def sample_data_to_diretories(self):
 
@@ -57,7 +76,7 @@ class PrepareEnvironment(object):
                     shutil.copy(file, destionation_dir)
 
     def initial_setup(self):
-        self.create_diretories()
+        self.create_training_validation_testing_diretories()
         self.sample_data_to_diretories()
 
 class MobileNet(PrepareEnvironment):
@@ -96,7 +115,6 @@ class MobileNet(PrepareEnvironment):
         return model
 
     def download_model_from_drive(self):
-        
         gdown.download(self.url_of_model_stored_in_drive, self.saved_model_name, quiet=False)
 
     def load_just_one_image(self, img_path):
@@ -124,6 +142,24 @@ class MobileNet(PrepareEnvironment):
                                                     batch_size=self.batch_size, target_size=self.image_size[:-1], class_mode='categorical')
         self.test_set = self.test_datagen.flow_from_directory(self.sampled_dataset+self.subdirs[2], batch_size=1,
                                                     target_size=self.image_size[:-1], class_mode=None, shuffle=False)
+
+    def prepare_data_from_specific_diretory(self, diretory):
+        self.data_set = ImageDataGenerator(rescale=1./255).flow_from_directory(diretory, batch_size=1, target_size=self.image_size[:-1],
+                                                                                class_mode=None, shuffle=False)
+
+    def predict_image_from_specific_diretory(self, diretory):
+        print('Processing images...')
+        nontext_index = 0
+        one_hot_outputs = self.model.predict(self.data_set)
+
+        for index, one_hot_output in enumerate(one_hot_outputs):
+            img_path = diretory + self.data_set.filenames[index]
+
+            if np.argmax(one_hot_output) == nontext_index:
+                shutil.copy(img_path, self.data_diretory+self.labeldirs[0])
+            else:
+                shutil.copy(img_path, self.data_diretory+self.labeldirs[1])
+
 
     def train(self):
         checkpoint = ModelCheckpoint(filepath=self.modelCheckPoint_name, monitor='val_loss', save_best_only=True, mode='min', verbose=0)
@@ -159,8 +195,6 @@ class MobileNet(PrepareEnvironment):
 
         return self.model.fit(img)
 
-    # def save_model(self):
-    #     self.model.save(self.saved_model_name)
     def load_checkpoint_model(self):
         try:
             self.model = load_model(self.modelCheckPoint_name)
@@ -176,22 +210,40 @@ class MobileNet(PrepareEnvironment):
                 self.download_model_from_drive()
 
             self.model = load_model(model_name)
-            print(f'The \'{model_name}\' was loaded.')
+            print(f'The \'{model_name}\' was loaded into the neural network.')
+            return True
         except Exception as e:
             print(f'Is was not possible to load \'{model_name}\'. \nThe exception\'{e}\' was raised.')
+            return False
     
-
-test = MobileNet()
-test.initial_setup()
-test.prepare_data_and_perform_data_augmentation()
-
+# test = MobileNet()
+# test.initial_setup()
+# test.prepare_data_and_perform_data_augmentation()
 # %%
-test.load_model()
+# test.load_model()
 # %%
 # test.train()
-
 # %%
-test.test_model()
-
+# test.test_model()
 # %%
-test.evaluate_model()
+# test.evaluate_model()
+
+if __name__ == '__main__':
+    diretory = ''
+    argc = len(sys.argv)
+
+    if argc < 2:
+        print('It is necessary to pass the name of the diretory as an argument.')
+        exit(1)
+    elif(argc >= 2):
+        diretory = sys.argv[1] + '/'
+    
+    if not os.path.exists(diretory):
+        print(f'The diretory \'{diretory}\' doesn\'t exist.')
+        exit(1)
+
+    nn = MobileNet()
+    if not nn.load_model() or not nn.create_specifics_nontext_text_diretory():
+        exit(1)
+    nn.prepare_data_from_specific_diretory(diretory)
+    nn.predict_image_from_specific_diretory(diretory)
