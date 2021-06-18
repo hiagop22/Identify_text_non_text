@@ -33,7 +33,7 @@ class PrepareEnvironment(object):
         self.sampled_dataset = 'dataset/'
         self.subdirs = ['training_set/', 'validation_set/', 'testing_set/']
         self.amount_of_sample = {self.subdirs[0]: 500, 
-                               self.subdirs[1]: 50,
+                               self.subdirs[1]: 500,
                                self.subdirs[2]: 500}
         self.batch_size = 64
         # self.labeldirs = ['nontext', 'text']
@@ -54,7 +54,7 @@ class PrepareEnvironment(object):
 
     def create_specifics_nontext_text_diretory(self):
         if os.path.exists(self.data_diretory):
-            print(f'The diretory \'{diretory}\' already exist, delete it brefore run this script.')
+            print(f'The diretory \'{self.data_diretory}\' already exist, delete it brefore run this script.')
             return False
         for labeldir in self.labeldirs:
             new_dir = self.data_diretory + labeldir
@@ -215,7 +215,8 @@ class MobileNet(PrepareEnvironment):
         except Exception as e:
             print(f'Is was not possible to load \'{model_name}\'. \nThe exception\'{e}\' was raised.')
             return False
-    
+
+#%%  
 # test = MobileNet()
 # test.initial_setup()
 # test.prepare_data_and_perform_data_augmentation()
@@ -228,6 +229,7 @@ class MobileNet(PrepareEnvironment):
 # %%
 # test.evaluate_model()
 
+# %%
 if __name__ == '__main__':
     diretory = ''
     argc = len(sys.argv)
@@ -236,7 +238,10 @@ if __name__ == '__main__':
         print('It is necessary to pass the name of the diretory as an argument.')
         exit(1)
     elif(argc >= 2):
-        diretory = sys.argv[1] + '/'
+        if sys.argv[1][-1] != '/':
+            diretory = sys.argv[1] + '/'
+        else:
+            diretory = sys.argv[1]
     
     if not os.path.exists(diretory):
         print(f'The diretory \'{diretory}\' doesn\'t exist.')
